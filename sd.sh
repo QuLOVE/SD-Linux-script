@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}$MUST_BE_ROOT${NC}"
+   exit 1
+fi
+
+
 # Detecting language
 lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
 
@@ -16,8 +22,6 @@ case $lang in
     ;;
 esac
 
-
-
 # Define colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,6 +31,8 @@ NC='\033[0m' # No Color
 source ./safetensor_models.sh
 source ./lora_models.sh
 source ./embeddings.sh
+source ./extensions.sh
+source ./controlnet.sh
 
 # Function to download models
 download_models() {
@@ -56,13 +62,13 @@ else
     exit 1
 fi
 
-if ! ping -c 1 google.com &> /dev/null; then
+if ! ping -c 1 github.com &> /dev/null; then
     echo -e "${RED}$NO_INTERNET${NC}"
     exit 1
 fi
 
 AVAILABLE_DISK_SPACE=$(df / | tail -1 | awk '{print $4}')
-REQUIRED_DISK_SPACE=100000000
+REQUIRED_DISK_SPACE=80000000
 if (( AVAILABLE_DISK_SPACE < REQUIRED_DISK_SPACE )); then
     echo -e "${RED}$NOT_ENOUGH_SPACE${NC}"
     exit 1
@@ -70,19 +76,17 @@ fi
 
 for pkg in curl wget git screen ngrok jq; do
     if ! command -v $pkg &> /dev/null; then
-        echo -e "${RED}$pkg$PKG_NOT_FOUND${NC}"
+        echo -e "${RED}$pkg $PKG_NOT_FOUND${NC}"
         if [[ "$OS" == "Ubuntu" ]]; then
             sudo apt-get install $pkg -y
-        elif [[ "$OS" == "Arch Linux" ]]; then
-            sudo pacman -S $pkg --noconfirm
         elif [[ "$OS" == "Debian GNU/Linux" ]]; then
             sudo apt-get install $pkg -y
         else
-            echo "Unsupported distribution"
+            echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
             exit 1
         fi
     else
-        echo -e "${GREEN}$pkg$PKG_INSTALLED${NC}"
+        echo -e "${GREEN}$pkg $PKG_INSTALLED${NC}"
     fi
 done
 
@@ -96,29 +100,68 @@ fi
 # Check Python version and install/upgrade if necessary
 if command -v python3 &> /dev/null; then
     version=$(python3 -V 2>&1 | grep -Po '(?<=Python )(.+)')
-    if [[ "$version" < "3.10.6" ]]; then
+    if [[ "$version" != "3.10.6" ]]; then
         echo -e "${RED}$PYTHON_LESS_THAN${NC}"
-        # Add commands to upgrade Python here
+        # Remove existing Python
+        if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
+            sudo apt-get remove python3 -y
+            # Download and install Python 3.10.6
+            curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+            echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
+            sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+            rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        else
+            echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
+            exit 1
+        fi
     else
         echo -e "${GREEN}$PYTHON_INSTALLED${NC}"
     fi
 else
     echo -e "${RED}$PYTHON_NOT_FOUND${NC}"
-    # Add commands to install Python here
+    # Install Python
+    if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
+        # Download and install Python 3.10.6
+        curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
+        sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+    else
+        echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
+        exit 1
+    fi
 fi
 
-# Check pip version and upgrade if necessary
-pip_version=$(pip3 -V | cut -d " " -f 2)
-if [[ "$pip_version" < "21.0" ]]; then
-    echo -e "${RED}$PIP_LESS_THAN${NC}"
-    pip3 install --upgrade pip
+
+
+# Check pip version and install/upgrade if necessary
+if command -v pip3 &> /dev/null; then
+    pip_version=$(pip3 -V | cut -d " " -f 2)
+    if [[ "$pip_version" < "21.0" ]]; then
+        echo -e "${RED}$PIP_LESS_THAN${NC}"
+        pip3 install --upgrade pip
+    else
+        echo -e "${GREEN}$PIP_UP_TO_DATE${NC}"
+    fi
 else
-    echo -e "${GREEN}$PIP_UP_TO_DATE${NC}"
+    echo -e "${RED}$PIP_NOT_FOUND${NC}"
+    # Add commands to install pip here
+    # For example, on Ubuntu you might do:
+    # sudo apt-get install python3-pip
 fi
 
 # Install project dependencies
 cd stable-diffusion-webui
-pip3 install -r requirements.txt
+if [ -f "requirements.txt" ]; then
+    pip3 install -r requirements.txt
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}$FAILED_TO_INSTALL_PYTHON_DEPS${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}$REQUIREMENTS_NOT_FOUND${NC}"
+    exit 1
+fi
 
 # Check if xformers is installed
 if ! python3 -c "import xformers" &> /dev/null; then
@@ -131,6 +174,10 @@ if ! python3 -c "import xformers" &> /dev/null; then
     git submodule update --init --recursive
     pip install -r requirements.txt
     pip install -e .
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}$FAILED_TO_INSTALL_XFORMERS${NC}"
+        exit 1
+    fi
 else
     echo -e "${GREEN}$XFORMERS_INSTALLED${NC}"
 fi
@@ -141,67 +188,37 @@ if [ -f "../webui-user.sh" ]; then
         echo -e "${GREEN}$WEBUI_USER_CORRECT${NC}"
     else
         sed -i 's/export COMMANDLINE_ARGS=""/export COMMANDLINE_ARGS="--xformers --share"/g' ../webui-user.sh
-        echo -e "${GREEN}$UPDATED_WEBUI_USER${NC}"
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}$FAILED_TO_UPDATE_WEBUI_USER${NC}"
+            exit 1
+        else
+            echo -e "${GREEN}$UPDATED_WEBUI_USER${NC}"
+        fi
     fi
 else
     echo -e "${RED}$WEBUI_USER_NOT_FOUND${NC}"
-    exit 1
+    git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui/
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}$FAILED_TO_CLONE_SD_WEBUI${NC}"
+        exit 1
+    fi
 fi
 
 # Clone extensions
 cd ../extensions
-if [ ! -d "sd-dynamic-thresholding" ]; then
-    git clone https://github.com/mcmonkeyprojects/sd-dynamic-thresholding
-fi
-if [ ! -d "stable-diffusion-webui-composable-lora" ]; then
-    git clone https://github.com/opparco/stable-diffusion-webui-composable-lora
-fi
-if [ ! -d "depthmap2mask-update" ]; then
-    git clone https://github.com/474172261/depthmap2mask-update
-fi
-if [ ! -d "sd-face-editor" ]; then
-    git clone https://github.com/ototadana/sd-face-editor.git
-fi
-if [ ! -d "a1111-sd-webui-lycoris" ]; then
-    git clone https://github.com/KohakuBlueleaf/a1111-sd-webui-lycoris
-fi
-if [ ! -d "sd-webui-controlnet" ]; then
-    git clone https://github.com/Mikubill/sd-webui-controlnet.git
-fi
-if [ ! -d "sd-webui-depth-lib" ]; then
-    git clone https://github.com/jexom/sd-webui-depth-lib.git
-fi
-if [ ! -d "posex" ]; then
-    git clone https://github.com/hnmr293/posex
-fi
-if [ ! -d "sd-webui-roop-unlock" ]; then
-    git clone https://github.com/QuLOVE/sd-webui-roop-unlock
-fi
-
+for ext in "${!extensions[@]}"; do
+    if [ ! -d "$ext" ]; then
+        git clone "${extensions[$ext]}"
+    fi
+done
 
 # Download model files from ControlNet repository on HuggingFace
 cd sd-webui-controlnet/models
-if [ ! -f "control_v11e_sd15_ip2p.pth" ]; then
-    curl -L -o control_v11e_sd15_ip2p.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11e_sd15_ip2p.pth
-fi
-if [ ! -f "control_v11e_sd15_shuffle.pth" ]; then
-    curl -L -o control_v11e_sd15_shuffle.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11e_sd15_shuffle.pth
-fi
-if [ ! -f "control_v11f1e_sd15_tile.pth" ]; then
-    curl -L -o control_v11f1e_sd15_tile.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11f1e_sd15_tile.pth
-fi
-if [ ! -f "control_v11f1p_sd15_depth.pth" ]; then
-    curl -L -o control_v11f1p_sd15_depth.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11f1p_sd15_depth.pth
-fi
-if [ ! -f "control_v11p_sd15_canny.pth" ]; then
-    curl -L -o control_v11p_sd15_canny.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11p_sd15_canny.pth
-fi
-if [ ! -f "control_v11p_sd15_inpaint.pth" ]; then
-    curl -L -o control_v11p_sd15_inpaint.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11p_sd15_inpaint.pth
-fi
-if [ ! -f "control_v11p_sd15_lineart.pth" ]; then
-    curl -L -o control_v11p_sd15_lineart.pth https://huggingface.co/lllyasviel/ControlNet-v1-1/blob/main/control_v11p_sd15_lineart.pth
-fi
+for model in "${!controlnet[@]}"; do
+    if [ ! -f "$model" ]; then
+        curl -L -o "$model" "${controlnet[$model]}"
+    fi
+done
 
 # Return to the root directory
 cd $HOME

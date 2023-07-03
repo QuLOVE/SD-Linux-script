@@ -33,21 +33,45 @@ source ./lora_models.sh
 source ./embeddings.sh
 source ./extensions.sh
 source ./controlnet.sh
+source ./upscalers.sh
 
-# Function to download models
-download_models() {
-    local models=$1
-    local folder=$2
-    mkdir -p "$folder"
-    cd "$folder"
+if [ ! -f ~/.ngrok2/ngrok.yaml ]; then
+    echo -e "${RED}$NGROK_NOT_FOUND${NC}"
+    read -p "$ENTER_NGROK " ngrok_config
+    echo "$ngrok_config" > ~/.ngrok2/ngrok.yaml
+fi
+
+
+download_models_civitai() {
+    declare -A models=$1
+    local path=$2
+
     for id in "${!models[@]}"; do
-        read -p "$DOWNLOAD_PROMPT ${models[$id]}? [y/N] " answer
-        if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-            wget "https://civitai.com/api/download/models/$id" --content-disposition
+        local url="https://civitai.com/api/download/models/${id}"
+        local filename=$(curl -sI $url | grep -o -E 'filename=.*$' | sed -e 's/filename=//')
+        local file="${path}/${filename}"
+        if [ ! -f "$file" ]; then
+            echo "Downloading ${models[$id]}..."
+            wget --content-disposition -P "$path" "$url"
         fi
     done
-    cd ..
 }
+
+download_models_huggingface() {
+    declare -A models=$1
+    local path=$2
+
+    for model in "${!models[@]}"; do
+        local file="${path}/${model}"
+        if [ ! -f "$file" ]; then
+            local url="${models[$model]}"
+            echo "Downloading $model..."
+            curl -o "$file" -L "$url"
+        fi
+    done
+}
+
+
 
 if [[ $PWD != $HOME ]]; then
     echo -e "${RED}$RUN_FROM_ROOT${NC}"
@@ -220,24 +244,17 @@ for model in "${!controlnet[@]}"; do
     fi
 done
 
+
+
 # Return to the root directory
 cd $HOME
 
 # Download models
-read -p "$DOWNLOAD_SAFETENSOR_MODELS? [y/N] " answer
-if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-    download_models "$models" "stable-diffusion-webui/models/Stable-diffusion"
-fi
-
-read -p "$DOWNLOAD_LORA_MODELS? [y/N] " answer
-if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-    download_models "$lora_models" "stable-diffusion-webui/models/LoRA"
-fi
-
-read -p "$DOWNLOAD_EMBEDDINGS? [y/N] " answer
-if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-    download_models "$embeddings" "stable-diffusion-webui/models/Embeddings"
-fi
+download_models_civitai "$safetensors" "stable-diffusion-webui/models/Stable-diffusion"
+download_models_civitai "$lora_models" "stable-diffusion-webui/models/LoRA"
+download_models_civitai "$embeddings" "stable-diffusion-webui/models/Embeddings"
+download_models_huggingface "$upscalers" "stable-diffusion-webui/models/Upscalers"
+download_models_huggingface "$controlnet" "stable-diffusion-webui/models/ControlNet"
 
 # Start webui-user.sh in a screen session
 screen -dmS SD bash -c 'cd stable-diffusion-webui; ./webui-user.sh'

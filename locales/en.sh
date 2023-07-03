@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Localization file for English
+
+RUN_FROM_ROOT="Please run this script from the root directory."
+NO_OS_RELEASE="Cannot find /etc/os-release. Are you sure you're running a supported OS?"
+NO_INTERNET="Internet connection not detected. Please ensure you are connected to the internet."
+NOT_ENOUGH_SPACE="Not enough disk space. Please ensure you have at least 100GB of free space."
+PKG_NOT_FOUND=" is not installed. Installing..."
+PKG_INSTALLED=" is already installed."
+SD_EXISTS="stable-diffusion-webui already exists."
+PYTHON_LESS_THAN="Python 3.10.6 or higher is required. Please upgrade your Python version."
+PYTHON_INSTALLED="Python 3.10.6 is installed."
+PYTHON_NOT_FOUND="Python could not be found, installing Python 3.10.6..."
+PIP_LESS_THAN="pip is installed but the version is less than 21.0, upgrading..."
+PIP_UP_TO_DATE="pip is up-to-date."
+XFORMERS_NOT_FOUND="xformers is not installed, installing..."
+XFORMERS_INSTALLED="xformers is installed."
+WEBUI_USER_CORRECT="webui-user.sh already contains the correct COMMANDLINE_ARGS."
+UPDATED_WEBUI_USER="Updated COMMANDLINE_ARGS in webui-user.sh."
+WEBUI_USER_NOT_FOUND="webui-user.sh not found."
+DOWNLOAD_PROMPT="Download"
+DOWNLOAD_SAFETENSOR_MODELS="Download safetensor models?"
+DOWNLOAD_LORA_MODELS="Download LoRA models?"
+DOWNLOAD_EMBEDDINGS="Download embeddings?"
+PUBLIC_URL="Public URL"
+ALL_TASKS_COMPLETED="All tasks have been completed successfully."

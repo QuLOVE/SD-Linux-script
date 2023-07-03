@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Localization file for Chinese
+
+RUN_FROM_ROOT="请从根目录运行这个脚本。"
+NO_OS_RELEASE="无法找到/etc/os-release。你确定你运行的是一个被支持的操作系统吗？"
+NO_INTERNET="检测不到互联网连接。请确保你已连接到互联网。"
+NOT_ENOUGH_SPACE="没有足够的磁盘空间。请确保你有至少100GB的可用空间。"
+PKG_NOT_FOUND="没有安装。正在安装..."
+PKG_INSTALLED="已经安装。"
+SD_EXISTS="stable-diffusion-webui已经存在。"
+PYTHON_LESS_THAN="需要 Python 3.10.6 或更高版本。请升级你的Python版本。"
+PYTHON_INSTALLED="Python 3.10.6已经安装。"
+PYTHON_NOT_FOUND="找不到Python，安装Python 3.10.6..."
+PIP_LESS_THAN="pip已经安装，但版本小于21.0，升级..."
+PIP_UP_TO_DATE="pip是最新的。"
+XFORMERS_NOT_FOUND="xformers没有安装，安装..."
+XFORMERS_INSTALLED="xformers已经安装。"
+WEBUI_USER_CORRECT="webui-user.sh已经包含正确的COMMANDLINE_ARGS。"
+UPDATED_WEBUI_USER="更新了webui-user.sh中的COMMANDLINE_ARGS。"
+WEBUI_USER_NOT_FOUND="未找到webui-user.sh。"
+DOWNLOAD_PROMPT="下载"
+DOWNLOAD_SAFETENSOR_MODELS="下载安全传感器模型？"
+DOWNLOAD_LORA_MODELS="下载LoRA模型？"
+DOWNLOAD_EMBEDDINGS="下载嵌入数据？"
+PUBLIC_URL="公共URL"
+ALL_TASKS_COMPLETED="所有任务都已成功完成。"

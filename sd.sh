@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}$MUST_BE_ROOT${NC}"
+   exit 1
+fi
+
+
 # Detecting language
 lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
 
@@ -73,8 +79,6 @@ for pkg in curl wget git screen ngrok jq; do
         echo -e "${RED}$pkg $PKG_NOT_FOUND${NC}"
         if [[ "$OS" == "Ubuntu" ]]; then
             sudo apt-get install $pkg -y
-        elif [[ "$OS" == "Arch Linux" ]]; then
-            sudo pacman -S $pkg --noconfirm
         elif [[ "$OS" == "Debian GNU/Linux" ]]; then
             sudo apt-get install $pkg -y
         else
@@ -96,14 +100,39 @@ fi
 # Check Python version and install/upgrade if necessary
 if command -v python3 &> /dev/null; then
     version=$(python3 -V 2>&1 | grep -Po '(?<=Python )(.+)')
-    if [[ "$version" < "3.10.6" ]]; then
+    if [[ "$version" != "3.10.6" ]]; then
         echo -e "${RED}$PYTHON_LESS_THAN${NC}"
+        # Remove existing Python
+        if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
+            sudo apt-get remove python3 -y
+            # Download and install Python 3.10.6
+            curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+            echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
+            sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+            rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        else
+            echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
+            exit 1
+        fi
     else
         echo -e "${GREEN}$PYTHON_INSTALLED${NC}"
     fi
 else
     echo -e "${RED}$PYTHON_NOT_FOUND${NC}"
+    # Install Python
+    if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
+        # Download and install Python 3.10.6
+        curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
+        sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+        rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
+    else
+        echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
+        exit 1
+    fi
 fi
+
+
 
 # Check pip version and install/upgrade if necessary
 if command -v pip3 &> /dev/null; then
@@ -116,6 +145,9 @@ if command -v pip3 &> /dev/null; then
     fi
 else
     echo -e "${RED}$PIP_NOT_FOUND${NC}"
+    # Add commands to install pip here
+    # For example, on Ubuntu you might do:
+    # sudo apt-get install python3-pip
 fi
 
 # Install project dependencies

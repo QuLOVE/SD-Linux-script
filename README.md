@@ -1,6 +1,6 @@
 # Stable Diffusion Linux Script
 
-This repository contains a bash script for setting up a stable diffusion environment on Linux. The script is designed to work with Ubuntu, Arch Linux, and Debian distributions.
+This repository contains a bash script for setting up a stable diffusion environment on Linux. The script is designed to work with Ubuntu and Debian distributions.
 
 ## Features
 
@@ -34,7 +34,7 @@ The script will prompt you to download various models. Enter `y` to download a m
 
 - Internet connection
 - At least 80GB of free disk space
-- Ubuntu, Arch Linux, or Debian distribution
+- Ubuntu or Debian distribution
 
 ## Note
 

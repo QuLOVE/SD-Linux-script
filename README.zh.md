@@ -1,6 +1,6 @@
 # Stable Diffusion Linux Script
 
-这个资源库包含一个bash脚本，用于在Linux上建立一个稳定的扩散环境。该脚本适用于Ubuntu和Debian发行版。
+这个资源库包含一个bash脚本，用于在Linux上建立一个稳定的Stable Diffusion环境。 该脚本适用于Ubuntu和Debian发行版。
 
 ## 特点
 

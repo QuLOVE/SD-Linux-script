@@ -116,9 +116,6 @@ if command -v pip3 &> /dev/null; then
     fi
 else
     echo -e "${RED}$PIP_NOT_FOUND${NC}"
-    # Add commands to install pip here
-    # For example, on Ubuntu you might do:
-    # sudo apt-get install python3-pip
 fi
 
 # Install project dependencies

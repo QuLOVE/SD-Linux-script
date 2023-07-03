@@ -1,4 +1,4 @@
-# 安定した拡散 Linux スクリプト
+# Stable Diffusion Linux Script
 
 このリポジトリには、Linux で安定した拡散環境をセットアップするための bash スクリプトがあります。このスクリプトは Ubuntu, Arch Linux, Debian ディストリビューションで動作するように設計されています。
 

@@ -1,4 +1,4 @@
-# SD Linux Script
+# Stable Diffusion Linux Script
 
 This repository contains a bash script for setting up a stable diffusion environment on Linux. The script is designed to work with Ubuntu, Arch Linux, and Debian distributions.
 

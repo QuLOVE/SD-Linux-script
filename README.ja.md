@@ -1,6 +1,6 @@
 # Stable Diffusion Linux Script
 
-このリポジトリには、Linux で安定した拡散環境をセットアップするための bash スクリプトがあります。このスクリプトは Ubuntu, Arch Linux, Debian ディストリビューションで動作するように設計されています。
+このリポジトリには、Linux上でStable Diffusion環境をセットアップするためのbashスクリプトが含まれています。このスクリプトはUbuntuとDebianディストリビューションで動作するように設計されています。
 
 ## 特徴
 
@@ -34,4 +34,4 @@ cd SD-Linux-script
 
 - インターネット接続
 - 少なくとも 80GB のディスク空き容量
-- Ubuntu、Arch Linux、または Debian ディストリビューション
+- UbuntuまたはDebianディストリビューション

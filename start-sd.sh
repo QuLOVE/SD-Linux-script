@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Detecting language
+lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
+
 # Loading localization file
 case $lang in
   "ja")
@@ -59,9 +62,6 @@ check_python_version() {
         update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
     fi
 }
-
-# Detecting language
-lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
 
 # Check for Python 3.10 and install if necessary
 check_python_version

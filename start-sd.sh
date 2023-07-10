@@ -1,14 +1,5 @@
 #!/bin/bash
 
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}$MUST_BE_ROOT${NC}"
-   exit 1
-fi
-
-
-# Detecting language
-lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
-
 # Loading localization file
 case $lang in
   "ja")
@@ -27,6 +18,57 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}$MUST_BE_ROOT${NC}"
+   exit 1
+fi
+
+AVAILABLE_DISK_SPACE=$(df / | tail -1 | awk '{print $4}')
+REQUIRED_DISK_SPACE=80000000
+if (( AVAILABLE_DISK_SPACE < REQUIRED_DISK_SPACE )); then
+    echo -e "${RED}$NOT_ENOUGH_SPACE${NC}"
+    exit 1
+fi
+
+# Update package lists for upgrades and new package installations
+apt-get update
+
+# Function to check and install necessary packages
+check_install_packages() {
+    for pkg in $1; do
+        if ! command -v $pkg &> /dev/null; then
+            echo -e "${RED}$pkg $PKG_NOT_FOUND${NC}"
+            apt-get install $pkg -y
+        else
+            echo -e "${GREEN}$pkg $PKG_INSTALLED${NC}"
+        fi
+    done
+}
+
+# Function to check and install necessary python version
+check_python_version() {
+    python_version=$(python3.10 -V 2>&1 | grep -Po '(?<=Python )(.+)' || echo "Not Found")
+    if [[ "$python_version" != "3.10"* ]]; then
+        if command -v python3 &> /dev/null; then
+            apt-get remove -y python3
+        fi
+        apt-get install -y python3.10
+    fi
+    # Check if python3.10 command exists and then make python command refer to python3.10
+    if command -v python3.10 &> /dev/null; then
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+    fi
+}
+
+# Detecting language
+lang=$(locale | grep LANG | cut -d= -f2 | cut -d_ -f1)
+
+# Check for Python 3.10 and install if necessary
+check_python_version
+
+required_packages="curl wget git screen jq"
+check_install_packages "$required_packages"
+
 # Define models and their IDs or URLs
 source ./safetensor_models.sh
 source ./lora_models.sh
@@ -35,10 +77,31 @@ source ./extensions.sh
 source ./controlnet.sh
 source ./upscalers.sh
 
-if [ ! -f ~/.ngrok2/ngrok.yaml ]; then
+# Check pip version and install/upgrade if necessary
+if command -v pip3 &> /dev/null; then
+    pip_version=$(pip3 -V | cut -d " " -f 2)
+    if [[ "$pip_version" < "21.0" ]]; then
+        echo -e "${RED}$PIP_LESS_THAN${NC}"
+        pip3 install --upgrade pip
+    else
+        echo -e "${GREEN}$PIP_UP_TO_DATE${NC}"
+    fi
+else
+    echo -e "${RED}$PIP_NOT_FOUND${NC}"
+    apt-get install python3-pip -y
+fi
+
+# Download and install ngrok
+if [ ! -f "/usr/local/bin/ngrok" ]; then
+    wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+    tar xf ngrok-v3-stable-linux-amd64.tgz
+    sudo mv ngrok /usr/local/bin
+    rm ngrok-v3-stable-linux-amd64.tgz
+fi
+
+if [ ! -f /root/.config/ngrok/ngrok.yml ]; then
     echo -e "${RED}$NGROK_NOT_FOUND${NC}"
     read -p "$ENTER_NGROK " ngrok_config
-    echo "$ngrok_config" > ~/.ngrok2/ngrok.yaml
 fi
 
 download_models() {
@@ -46,7 +109,7 @@ download_models() {
     local path=$2
     local from=$3
 
-    # Проверить существование каталога
+    # Check for existing of folder with models
     if [ ! -d "$path" ]; then
         mkdir -p "$path"
     fi
@@ -57,7 +120,7 @@ download_models() {
 
         if [ "$from" == "civitai" ]; then
             url="https://civitai.com/api/download/models/${id}"
-            local filename=$(curl -sI $url | grep -o -E 'filename=.*$' | sed -e 's/filename=//')
+            local filename=$(wget --server-response --spider $url 2>&1 | awk -F"filename=" '/filename=/{print $2}' | tr -d '\r')
             file="${path}/${filename}"
         else
             url="${models[$id]}"
@@ -69,16 +132,11 @@ download_models() {
             if [ "$from" == "civitai" ]; then
                 wget --content-disposition -P "$path" "$url"
             else
-                curl -o "$file" -L "$url"
+                wget -O "$file" -L "$url"
             fi
         fi
     done
 }
-
-if [[ $PWD != $HOME ]]; then
-    echo -e "${RED}$RUN_FROM_ROOT${NC}"
-    exit 1
-fi
 
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -88,19 +146,7 @@ else
     exit 1
 fi
 
-if ! ping -c 1 github.com &> /dev/null; then
-    echo -e "${RED}$NO_INTERNET${NC}"
-    exit 1
-fi
-
-AVAILABLE_DISK_SPACE=$(df / | tail -1 | awk '{print $4}')
-REQUIRED_DISK_SPACE=80000000
-if (( AVAILABLE_DISK_SPACE < REQUIRED_DISK_SPACE )); then
-    echo -e "${RED}$NOT_ENOUGH_SPACE${NC}"
-    exit 1
-fi
-
-for pkg in curl wget git screen ngrok jq; do
+for pkg in curl wget git screen jq; do
     if ! command -v $pkg &> /dev/null; then
         echo -e "${RED}$pkg $PKG_NOT_FOUND${NC}"
         if [[ "$OS" == "Ubuntu" ]]; then
@@ -123,57 +169,6 @@ else
     echo -e "${GREEN}$SD_EXISTS${NC}"
 fi
 
-# Check Python version and install/upgrade if necessary
-if command -v python3 &> /dev/null; then
-    version=$(python3 -V 2>&1 | grep -Po '(?<=Python )(.+)')
-    if [[ "$version" != "3.10.6" ]]; then
-        echo -e "${RED}$PYTHON_LESS_THAN${NC}"
-        # Remove existing Python
-        if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
-            sudo apt-get remove python3 -y
-            # Download and install Python 3.10.6
-            curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-            echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
-            sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-            rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-        else
-            echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${GREEN}$PYTHON_INSTALLED${NC}"
-    fi
-else
-    echo -e "${RED}$PYTHON_NOT_FOUND${NC}"
-    # Install Python
-    if [[ "$OS" == "Ubuntu" || "$OS" == "Debian GNU/Linux" ]]; then
-        # Download and install Python 3.10.6
-        curl -O http://security.ubuntu.com/ubuntu/pool/main/p/python3.10/python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-        echo "e978c80696b0c0578bdb8439fe285353d610170e2d53031a4811d9cc97845792  python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb" | sha256sum --check
-        sudo dpkg -i python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-        rm python3.10_3.10.6-1~22.04.2ubuntu1.1_amd64.deb
-    else
-        echo -e "${RED}$UNSUPPORTED_DISTRIBUTION${NC}"
-        exit 1
-    fi
-fi
-
-# Check pip version and install/upgrade if necessary
-if command -v pip3 &> /dev/null; then
-    pip_version=$(pip3 -V | cut -d " " -f 2)
-    if [[ "$pip_version" < "21.0" ]]; then
-        echo -e "${RED}$PIP_LESS_THAN${NC}"
-        pip3 install --upgrade pip
-    else
-        echo -e "${GREEN}$PIP_UP_TO_DATE${NC}"
-    fi
-else
-    echo -e "${RED}$PIP_NOT_FOUND${NC}"
-    # Add commands to install pip here
-    # For example, on Ubuntu you might do:
-    # sudo apt-get install python3-pip
-fi
-
 # Install project dependencies
 cd stable-diffusion-webui
 if [ -f "requirements.txt" ]; then
@@ -182,9 +177,6 @@ if [ -f "requirements.txt" ]; then
         echo -e "${RED}$FAILED_TO_INSTALL_PYTHON_DEPS${NC}"
         exit 1
     fi
-else
-    echo -e "${RED}$REQUIREMENTS_NOT_FOUND${NC}"
-    exit 1
 fi
 
 # Check if xformers is installed
@@ -219,13 +211,6 @@ if [ -f "../webui-user.sh" ]; then
             echo -e "${GREEN}$UPDATED_WEBUI_USER${NC}"
         fi
     fi
-else
-    echo -e "${RED}$WEBUI_USER_NOT_FOUND${NC}"
-    git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui/
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}$FAILED_TO_CLONE_SD_WEBUI${NC}"
-        exit 1
-    fi
 fi
 
 # Return to the root directory
@@ -243,8 +228,8 @@ screen -dmS SD bash -c 'cd stable-diffusion-webui; ./webui-user.sh'
 
 # Start ngrok in a screen session and print the public URL
 screen -dmS ngrok bash -c 'ngrok http 7860'
-sleep 5
-public_url=$(curl --silent --max-time 10 --connect-timeout 5 http://127.0.0.1:4040/api/tunnels | jq --raw-output '.tunnels[0].public_url')
+sleep 10
+public_url=$(wget -qO- http://127.0.0.1:4040/api/tunnels | jq --raw-output '.tunnels[0].public_url')
 echo -e "${GREEN}$PUBLIC_URL: $public_url${NC}"
 
 echo -e "${GREEN}$ALL_TASKS_COMPLETED${NC}"
